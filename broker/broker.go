@@ -65,7 +65,6 @@ func (b *serviceBroker) Provision(context context.Context, instanceId string, pr
 	b.Logger.Info("Starting provisioning a service instance", lager.Data{
 		"instance-id":       instanceId,
 		"plan-id":           plan.Name,
-		"plan-probability":  plan.Probability,
 		"plan-desctiption":  plan.Description,
 		"organization-guid": provisionDetails.OrganizationGUID,
 		"space-guid":        provisionDetails.SpaceGUID,
@@ -112,11 +111,10 @@ func (b *serviceBroker) Bind(context context.Context, instanceId, bindingId stri
 	err := b.Db.First(&serivceInstance, "instance_id = ?", instanceId).Error
 
 	b.Logger.Info("Starting binding a service instance", lager.Data{
-		"instance-id":                 instanceId,
-		"serivceInstance.instanceId":  serivceInstance.InstanceId,
-		"serivceInstance.Probability": serivceInstance.Probability,
-		"app-guid":                    details.AppGUID,
-		"plan-id":                     details.PlanID,
+		"instance-id":                instanceId,
+		"serivceInstance.instanceId": serivceInstance.InstanceId,
+		"app-guid":                   details.AppGUID,
+		"plan-id":                    details.PlanID,
 	})
 
 	if err != nil {
