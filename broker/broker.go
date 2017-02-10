@@ -74,8 +74,7 @@ func (b *serviceBroker) Provision(context context.Context, instanceId string, pr
 	// create a service instance here
 
 	serivceInstance := model.ServiceInstance{
-		InstanceId:  instanceId,
-		Probability: plan.Probability,
+		InstanceId: instanceId,
 	}
 
 	err = b.Db.Create(&serivceInstance).Error
