@@ -1,0 +1,11 @@
+applications:
+- name: service-broker
+  memory: 512M
+  instances: 2
+  buildpack: https://github.com/ryandotsmith/null-buildpack
+  path: .
+  command: ./cf-broker-boilerplate -c plans.yml
+  # env:
+  #   FOO: boo
+  services:
+  - service-broker-db
