@@ -14,7 +14,7 @@ type Config struct {
 
 type Plan struct {
 	Name        string
-	Probability float64
+	Description string
 }
 
 type ServiceBroker struct {
