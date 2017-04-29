@@ -1,4 +1,4 @@
-github.com/jessevdk/go-flags:4e64e4a
+github.com/jessevdk/go-flags:460c7bb
 github.com/pivotal-cf/brokerapi:2888133
 github.com/jagregory/halgo:d1d6fd6
 code.cloudfoundry.org/cli/plugin:8806d2c
@@ -10,3 +10,4 @@ github.com/davecgh/go-spew/spew:346938d
 github.com/jtacoma/uritemplates:307ae86
 github.com/jinzhu/inflection:1c35d90
 github.com/gorilla/mux:392c28f
+github.com/cloudfoundry/bosh-cli:d5180d5a
