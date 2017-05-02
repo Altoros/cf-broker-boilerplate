@@ -11,3 +11,5 @@ github.com/jtacoma/uritemplates:307ae86
 github.com/jinzhu/inflection:1c35d90
 github.com/gorilla/mux:392c28f
 github.com/cloudfoundry/bosh-cli:d5180d5a
+github.com/cloudfoundry/bosh-utils/logger:e074cc0
+github.com/cloudfoundry/bosh-utils/errors:e074cc0

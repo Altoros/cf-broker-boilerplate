@@ -7,6 +7,7 @@ import (
 	"github.com/Altoros/cf-broker-boilerplate/cmd"
 	"github.com/Altoros/cf-broker-boilerplate/config"
 	"github.com/Altoros/cf-broker-boilerplate/model"
+	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	"github.com/jinzhu/gorm"
 	"github.com/pivotal-cf/brokerapi"
 )
@@ -14,12 +15,12 @@ import (
 type serviceBroker struct {
 	Config config.Config
 	Db     *gorm.DB
-	Opts   cmd.CommandOpts
-	Logger lager.Logger
+	Opts   *cmd.CommandOpts
+	Logger boshlog.Logger
 }
 
 func NewServiceBroker(
-	opts cmd.CommandOpts,
+	opts *cmd.CommandOpts,
 	config config.Config,
 	db *gorm.DB,
 	logger lager.Logger) *serviceBroker {

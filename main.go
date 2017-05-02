@@ -2,79 +2,110 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
+	"os/signal"
+	"runtime/debug"
+	"syscall"
 
-	"code.cloudfoundry.org/lager"
-	"github.com/Altoros/cf-broker-boilerplate/broker"
+	boshcmd "github.com/cloudfoundry/bosh-cli/cmd"
+	bilog "github.com/cloudfoundry/bosh-cli/logger"
+	boshui "github.com/cloudfoundry/bosh-cli/ui"
+	boshuifmt "github.com/cloudfoundry/bosh-cli/ui/fmt"
+	bosherr "github.com/cloudfoundry/bosh-utils/errors"
+	boshlog "github.com/cloudfoundry/bosh-utils/logger"
+
 	"github.com/Altoros/cf-broker-boilerplate/cmd"
-	"github.com/Altoros/cf-broker-boilerplate/config"
-	database "github.com/Altoros/cf-broker-boilerplate/db"
-	goflags "github.com/jessevdk/go-flags"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
-	"github.com/pivotal-cf/brokerapi"
-
-	"bytes"
 )
 
+const mainLogTag = "main"
+
 func main() {
-	brokerLogger := lager.NewLogger("service-broker")
-	brokerLogger.RegisterSink(lager.NewWriterSink(os.Stdout, lager.DEBUG))
-	brokerLogger.RegisterSink(lager.NewWriterSink(os.Stderr, lager.ERROR))
+	logger := newLogger()
+	defer handlePanic()
 
-	opts := cmd.CommandOpts{}
-	parser := goflags.NewParser(&opts, goflags.HelpFlag|goflags.PassDoubleDash)
-	helpText := bytes.NewBufferString("")
-	parser.WriteHelp(helpText)
+	ui := boshui.NewConfUI(logger)
+	defer ui.Flush()
 
-	_, err := parser.ParseArgs(os.Args[1:])
+	cmdFactory := cmd.NewFactory(boshcmd.NewBasicDeps(ui, logger))
 
-	// --help and --version result in errors; turn them into successful output cmds
-	if typedErr, ok := err.(*goflags.Error); ok {
-		if typedErr.Type == goflags.ErrHelp {
-			fmt.Printf(helpText.String())
+	cmd, err := cmdFactory.New(os.Args[1:])
+	if err != nil {
+		fail(err, ui, logger)
+	}
+
+	logger.Debug(mainLogTag, "Starting CF Service Broker")
+	err = cmd.Execute()
+
+	if err != nil {
+		fail(err, ui, logger)
+	} else {
+		success(ui, logger)
+	}
+}
+
+func newLogger() boshlog.Logger {
+	level := boshlog.LevelNone
+
+	logLevelString := os.Getenv("SERVICE_BROKER_LOG_LEVEL")
+
+	if logLevelString != "" {
+		var err error
+		level, err = boshlog.Levelify(logLevelString)
+		if err != nil {
+			err = bosherr.WrapError(err, "Invalid SERVICE_BROKER_LOG_LEVEL value")
+			logger := boshlog.NewLogger(boshlog.LevelError)
+			ui := boshui.NewConsoleUI(logger)
+			fail(err, ui, logger)
 		}
 	}
 
-	brokerLogger.Info("Using config file: " + opts.ConfigPath)
+	return newSignalableLogger(boshlog.NewLogger(level))
+}
 
-	config, err := config.LoadFromFile(opts.ConfigPath)
+func newSignalableLogger(logger boshlog.Logger) boshlog.Logger {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGHUP)
+	signalableLogger, _ := bilog.NewSignalableLogger(logger, c)
+	return signalableLogger
+}
+
+func fail(err error, ui boshui.UI, logger boshlog.Logger) {
 	if err != nil {
-		brokerLogger.Error("Failed to load the config file", err, lager.Data{
-			"broker-config-path": opts.ConfigPath,
-		})
-		return
+		logger.Error("CLI", err.Error())
+		ui.ErrorLinef(boshuifmt.MultilineError(err))
 	}
+	ui.ErrorLinef("Exit code 1")
+	ui.Flush() // todo make sure UI is flushed
+	os.Exit(1)
+}
 
-	var db *gorm.DB
-	db, err = database.New()
-	if err != nil {
-		brokerLogger.Error("Failed to connect to the mysql: %s", err)
-	}
-	defer db.Close()
+func success(ui boshui.UI, logger boshlog.Logger) {
+	logger.Debug("CLI", "Succeeded")
+	ui.PrintLinef("Succeeded")
+}
 
-	serviceBroker := broker.NewServiceBroker(
-		opts,
-		config,
-		db,
-		brokerLogger,
-	)
+func handlePanic() {
+	panic := recover()
 
-	credentials := brokerapi.BrokerCredentials{
-		Username: opts.ServiceBrokerUsername,
-		Password: opts.ServiceBrokerPassword,
-	}
+	if panic != nil {
+		var msg string
 
-	brokerAPI := brokerapi.New(serviceBroker, brokerLogger, credentials)
+		switch obj := panic.(type) {
+		case string:
+			msg = obj
+		case fmt.Stringer:
+			msg = obj.String()
+		case error:
+			msg = obj.Error()
+		default:
+			msg = fmt.Sprintf("%#v", obj)
+		}
 
-	http.Handle("/", brokerAPI)
-	brokerLogger.Info("Listening for requests", lager.Data{
-		"port": opts.Port,
-	})
+		// Always output to regardless of main logger's level
+		logger := boshlog.NewLogger(boshlog.LevelError)
+		logger.ErrorWithDetails("CLI", "Panic: %s", msg, debug.Stack())
 
-	err = http.ListenAndServe(fmt.Sprintf(":%d", opts.Port), nil)
-	if err != nil {
-		brokerLogger.Error("Failed to start the server", err)
+		ui := boshui.NewConsoleUI(logger)
+		fail(nil, ui, logger)
 	}
 }
